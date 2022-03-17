@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
 {
 	char cmd[1024];
 
-	if (argc != 3) {
+	if (argc != 3) { //son tres pq el primero es el nombre de la funcion y los otros dos los que toma
 		fprintf(stderr, "usage: p <cmd> <file>\n");
 		exit(-1);
 	} 
