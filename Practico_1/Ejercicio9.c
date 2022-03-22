@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-int and(char* cmd1, char* cmd2)
+int and(char* cmd1, char* cmd2) // p && q
 {
     int status=0;
     if (fork() == 0){
@@ -24,7 +24,7 @@ int and(char* cmd1, char* cmd2)
     return status;
 }
 
-int or(char* cmd1, char* cmd2)
+int or(char* cmd1, char* cmd2) // p || q
 {
     int status=0;
     if (fork() == 0){
@@ -40,7 +40,7 @@ int or(char* cmd1, char* cmd2)
     return status;
 }
 
-int background_execution(char* cmd1, char* cmd2)
+int background_execution(char* cmd1, char* cmd2) // p & q
 {
     int status=0;
     if (fork() == 0){
@@ -54,7 +54,7 @@ int background_execution(char* cmd1, char* cmd2)
     return status;
 }
 
-int sequential_execution(char* cmd1, char* cmd2)
+int sequential_execution(char* cmd1, char* cmd2) // p ; q
 {
     int status=0;
     if (fork() == 0){
@@ -67,7 +67,7 @@ int sequential_execution(char* cmd1, char* cmd2)
 	wait(&status);
 }
 
-int op_pipe(char* cmd1, char* cmd2)
+int op_pipe(char* cmd1, char* cmd2)// p | q	
 {
 	int  t[2];
 	int status=0;
@@ -89,73 +89,70 @@ int op_pipe(char* cmd1, char* cmd2)
 	return status;
 }
 
-int redirect1(char* cmd1, char* file_name)
+int redirect1(char* cmd1, char* file_name)//p > file
 {
-	int status =0;
+	int status;
 	if (fork() == 0){
-		execl(cmd1, cmd1, (char*) NULL);
+		int fd = open(file_name, O_WRONLY , O_CREAT);
+		close(1);
+		dup(fd);
+		execl(cmd1, cmd1, (char*) NULL);	
 	}
-	wait (&status);
-	int fd = open(file_name, O_WRONLY, O_CREAT);
-	close(1);
-	dup(fd);
-	execl(cmd1, cmd1, (char*) NULL);
+	wait(&status);	
 	return status;
 }
-int redirect2(char* cmd1, char* file_name)
+
+int redirect2(char* cmd1, char* file_name) //p < file
 {
-	int status =0;
-	if (fork() == 0){
+	int status;
+	if(fork() == 0) {
+		int fd =  open(file_name, O_RDONLY);
+		close(0);
+		dup(fd);
+		close(fd);
 		execl(cmd1, cmd1, (char*) NULL);
+		
 	}
-	wait (&status);
-	int fd =  open(file_name, O_RDONLY);
-	close(0);
-	dup(fd);
+	wait(&status);
 	return status;
 }
-int main(int argc, char* argv[])
+
+int redirect3(char* cmd1, char* file_name) //p >> file
 {
-	if (argc != 4) { 
-		fprintf(stderr, "usage: ./p <cmd/file> <operator> <cmd/file>\n");
-		exit(-1);
-	} 
-    if (strcmp(argv[2],"&&")==0)
-		return and(argv[1],argv[3]);
-	if (strcmp(argv[2],"||")==0)
-		return or(argv[1],argv[3]);
-    if (strcmp(argv[2],"&")==0)
-		return background_execution(argv[1],argv[3]);
-    if (strcmp(argv[2],";")==0)
-		return sequential_execution(argv[1],argv[3]);
-	if (strcmp(argv[2],"|")==0)
-		return op_pipe(argv[1],argv[3]);
-	if (strcmp(argv[2],">")==0)
-		return redirect1(argv[1],argv[3]);
-	if (strcmp(argv[2],"<")==0)
-		return redirect2(argv[1],argv[3]);	 
+	int status;
+	if(fork() == 0) {
+		int fd =  open(file_name, O_CREAT | O_APPEND | O_WRONLY);
+		close(1);
+		dup(fd);
+		execl(cmd1, cmd1, (char*) NULL);
+	}
+	wait(&status);
 	return 0;
 }
 
-/*p > file 
-1. fork()
-2. En el hijo
-	2.1 redirigir
-	2.2 exec
-3. En el padre
-	3.1 esperar por el hijo 
-	
-
-	int status =0;
-	if (fork() == 0){
-		exec("p");
+int main(int argc, char* argv[])
+{
+	if (argc != 4) { 
+		fprintf(stderr, "usage: ./myshell <cmd/file> <operator> <cmd/file>\n");
+		exit(-1);
+	} else {
+		if (strcmp(argv[2],"&&")==0)
+			return and(argv[1],argv[3]);
+		if (strcmp(argv[2],"||")==0)
+			return or(argv[1],argv[3]);
+		if (strcmp(argv[2],"&")==0)
+			return background_execution(argv[1],argv[3]);
+		if (strcmp(argv[2],";")==0)
+			return sequential_execution(argv[1],argv[3]);
+		if (strcmp(argv[2],"|")==0)
+			return op_pipe(argv[1],argv[3]);
+		if (strcmp(argv[2],">")==0)
+			return redirect1(argv[1],argv[3]);
+		if (strcmp(argv[2],">>")==0)
+			return redirect3(argv[1],argv[3]);		
+		if (strcmp(argv[2],"<")==0)
+			return redirect2(argv[1],argv[3]);	 
 	}
-	wait (&status);
-	
-
-
-int fd = open(file, O_WRONLY, O_CREATE);
-close(1);
-dup(fd);
-exec("p");
-*/
+ 
+	return 0;
+}
