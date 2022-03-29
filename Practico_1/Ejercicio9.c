@@ -25,13 +25,13 @@ int and(char* cmd1, char* cmd2) // p && q
     int status=0;
     if (fork() == 0){
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));;
 	}
 	wait(&status);
 	if (status==0){
 		if (fork()==0){
 			cmd[0] = cmd2;
-			execv(cmd2, cmd);
+			exit(execv(cmd2, cmd));
 		}
 		wait(&status);
 	}
@@ -45,13 +45,13 @@ int or(char* cmd1, char* cmd2) // p || q
     int status=0;
     if (fork() == 0){
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));
 	}
 	wait(&status);
 	if (status!=0){
 		if (fork()==0){
 			cmd[0] = cmd2;
-			execv(cmd2, cmd);
+			exit(execv(cmd2, cmd));
 		}
 		wait(&status);
 	}
@@ -65,11 +65,11 @@ int background_execution(char* cmd1, char* cmd2) // p & q
     int status=0;
     if (fork() == 0){
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));
 	}
     if (fork()==0){
 			cmd[0] = cmd2;
-			execv(cmd2, cmd);
+			exit(execv(cmd2, cmd));
 		}
 	wait(&status);
     wait(&status);
@@ -83,12 +83,12 @@ int sequential_execution(char* cmd1, char* cmd2) // p ; q
     int status=0;
     if (fork() == 0){
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));
 	}
 	wait(&status);
     if (fork() == 0){
 		cmd[0] = cmd2;
-		execv(cmd2, cmd);
+		exit(execv(cmd2, cmd));
 	}
 	wait(&status);
 }
@@ -105,14 +105,14 @@ int pipe2(char* cmd1, char* cmd2)// p | q
 		dup(t[1]);
 		close(t[0]);
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));
 	}
 	if (fork()==0){
 		close(0);
 		dup(t[0]);
 		close(t[1]);
 		cmd[0] = cmd2;
-		execv(cmd2, cmd);
+		exit(execv(cmd2, cmd));
 	}
 	wait(&status);
 	wait(&status);
@@ -129,7 +129,7 @@ int redirect1(char* cmd1, char* file_name)//p > file
 		close(1);
 		dup(fd);
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));
 	}
 	wait(&status);	
 	return status;
@@ -146,7 +146,7 @@ int redirect2(char* cmd1, char* file_name) //p < file
 		dup(fd);
 		close(fd);
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));
 	}
 	wait(&status);
 	return status;
@@ -162,7 +162,7 @@ int redirect3(char* cmd1, char* file_name) //p >> file
 		close(1);
 		dup(fd);
 		cmd[0] = cmd1;
-		execv(cmd1,cmd);
+		exit(execv(cmd1,cmd));
 	}
 	wait(&status);
 	return 0;
