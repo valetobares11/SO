@@ -1,0 +1,4 @@
+1)	
+	a)gcc -S main.c y gcc -S f.c
+	b)gcc -c main.c y gcc -c f.c
+	c)gcc main.o f.o -o myprog
