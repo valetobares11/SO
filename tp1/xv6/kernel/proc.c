@@ -10,7 +10,7 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
-struct multilevel mlf[NLEVEL];
+struct multilevel mlf;
 
 struct proc *initproc;
 
@@ -19,40 +19,6 @@ struct spinlock pid_lock;
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
-
-
-static void
-enqueue(struct proc *p){
-  p->next = 0;
-  int lvl = p->level;
-  if (p-> state != RUNNABLE)
-    panic("state invalid in enqueue with state %d", p->state);
-  if (!mlf[lvl]){ 
-    mlf[lvl]->first = p;
-    mlf[lvl]->last = p;
-  } else {
-    mlf[lvl]->last->next = p;
-    mlf[lvl]->last = mlf[lvl]->last->next;
-  }
-}
-
-static struct proc*
-dequeue() {
-  int lvl = 0;
-  struct proc* res = 0;
-  while(lvl<NLEVEL){
-    if (!mlf[lvl]){
-      lvl++;
-    } else { 
-      res = mlf[lvl]->first;
-      mlf[lvl]->first++; 
-      lvl = NLEVEL;
-    }
-  }
-  if (res->state != RUNNING)
-  panic("invalid state in dequeue with state %d", res->state);
-  return res;
-}
 
 extern char trampoline[]; // trampoline.S
 
@@ -78,13 +44,51 @@ proc_mapstacks(pagetable_t kpgtbl) {
   }
 }
 
+static int
+isempty(int lvl){
+  return (&mlf.level[lvl])->first == 0; 
+};
+
+static void
+enqueue(struct proc *p){
+  p->next = 0;
+  int lvl = p->level;
+  if (p-> state != RUNNABLE)
+    panic("state invalid in enqueue with state");
+  if (isempty(lvl)){
+    //isEmpty
+    (&mlf.level[lvl])->first = p;
+    (&mlf.level[lvl])->last = p;
+  } else {
+    ((&mlf.level[lvl])->last)->next = p;
+    (&mlf.level[lvl])->last = p;
+  }
+  (&mlf.level[lvl])->size++;
+  printf("size de la cola %d en level %d \n",(&mlf.level[lvl])->size, lvl);
+}
+
+static struct proc*
+dequeue(int lvl) {
+  struct proc* res = 0;
+  if (isempty(lvl)) {
+    printf("cola vacia en nivel %d\n", lvl);
+    panic("panic in dequeue why queue is empty\n");
+  }
+  res = (&mlf.level[lvl])->first;
+  (&mlf.level[lvl])->first = res->next;
+  res->next = 0;
+  if (res->state != RUNNABLE)
+    panic("invalid state in dequeue ");
+  return res;
+}
+
+
 // initialize the proc table at boot time.
 void
 procinit(void)
 {
   struct proc *p;
- 
-  initlock(&m->lock, "lock_mlf");
+  initlock(&mlf.lock, "mlf_init");
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -257,8 +261,6 @@ uchar initcode[] = {
   0x74, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00
 };
-//SE ENCOLA CUANDO PASA A RUNNABLE Y SE DESENCOLA CUANDO PASA A RUNNING
-//YIELD +1 NIVEL SLEEPENG -1 NIVEL
 
 // Set up first user process.
 void
@@ -282,9 +284,12 @@ userinit(void)
   p->cwd = namei("/");
   p-> level = 0;
   p->state = RUNNABLE;
-  enqueue(p);
 
-  release(&p->lock);
+  acquire(&mlf.lock);
+  printf("encola en userinit\n");
+  enqueue(p);
+  release(&mlf.lock); 
+  release(&p->lock); 
 }
 
 // Grow or shrink user memory by n bytes.
@@ -352,11 +357,14 @@ fork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
-  np->level = p->level;
+  np->level = 0;//p->level
   np->state = RUNNABLE;
-  enqueue(np);
-  release(&np->lock);
 
+  acquire(&mlf.lock);
+  printf("encola en fork");
+  enqueue(np);
+  release(&mlf.lock);
+  release(&np->lock);
   return pid;
 }
 
@@ -486,25 +494,24 @@ scheduler(void)
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
-    for(p = proc; p < &proc[NPROC]; p++) { //&proc[NPROC]==proc+NPROC
+    
+    for(int lvl = 0; lvl < NLEVEL; lvl++) { 
+      acquire(&mlf.lock);
+      p = dequeue(lvl);
+      release(&mlf.lock);
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        dequeue(p);
-        p->ticks = 0;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+      // Switch to chosen process.  It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-      }
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
       release(&p->lock);
-    }
+    }    
   }
 }
 
@@ -541,9 +548,12 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
-  p->level = p->level++;
+  p->level++;
   p->state = RUNNABLE;
+  acquire(&mlf.lock);
+  printf("encola en yield");
   enqueue(p);
+  release(&mlf.lock);
   sched();
   release(&p->lock);
 }
@@ -611,9 +621,12 @@ wakeup(void *chan)
     if(p != myproc()){
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
-        p->level = p->level--;
+        p->level--;
         p->state = RUNNABLE;
+        acquire(&mlf.lock);
+        printf("encola en wakeup");
         enqueue(p);
+        release(&mlf.lock);
       }
       release(&p->lock);
     }
@@ -634,9 +647,12 @@ kill(int pid)
       p->killed = 1;
       if(p->state == SLEEPING){
         // Wake process from sleep().
-        p->level = 0; 
+        p->level = 0;
         p->state = RUNNABLE;
+        acquire(&mlf.lock);
+        printf("encola en kill");
         enqueue(p);
+        release(&mlf.lock);
       }
       release(&p->lock);
       return 0;

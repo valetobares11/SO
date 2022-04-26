@@ -108,14 +108,14 @@ struct proc {
   char name[16];               // Process name (debugging)
 };
 
-struct pproc{
-  struct proc *first; 
-  struct proc *last; 
-}
+struct queue {
+  int size;
+  struct proc* first;
+  struct proc* last;
+};
+
 
 struct multilevel{
   struct spinlock lock;
-  struct pproc proc[NLEVEL]; 
-}
-
-//el descriptor del proc copia el ofile para que los hijos de proc tambien hereden los files abiertos del padre
+  struct queue level[NLEVEL]; 
+};

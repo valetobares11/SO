@@ -38,7 +38,7 @@ usertrap(void)
 {
   int which_dev = 0;
 
-  if((r_sstatus() & SSTATUS_SPP) != 0) //si la interrupcion no fue por software Panicc
+  if((r_sstatus() & SSTATUS_SPP) != 0) //if the interruption was not for to software Panicc
     panic("usertrap: not from user mode");
 
   // send interrupts and exceptions to kerneltrap(),
@@ -50,7 +50,7 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
-  if(r_scause() == 8){ //si no fue una llamada al sistema
+  if(r_scause() == 8){ //if not was a call system 
     // system call
 
     if(p->killed)
