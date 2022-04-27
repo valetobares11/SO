@@ -117,5 +117,5 @@ struct queue {
 
 struct multilevel{
   struct spinlock lock;
-  struct queue level[NLEVEL]; 
+  struct queue queues[NLEVEL]; 
 };

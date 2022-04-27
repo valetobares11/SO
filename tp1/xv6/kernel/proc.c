@@ -46,39 +46,44 @@ proc_mapstacks(pagetable_t kpgtbl) {
 
 static int
 isempty(int lvl){
-  return (&mlf.level[lvl])->first == 0; 
+  return (&mlf.queues[lvl])->first == 0; 
 };
 
 static void
 enqueue(struct proc *p){
   p->next = 0;
   int lvl = p->level;
+  acquire(&mlf.lock);
   if (p-> state != RUNNABLE)
     panic("state invalid in enqueue with state");
   if (isempty(lvl)){
     //isEmpty
-    (&mlf.level[lvl])->first = p;
-    (&mlf.level[lvl])->last = p;
+    (&mlf.queues[lvl])->first = p;
+    (&mlf.queues[lvl])->last = p;
   } else {
-    ((&mlf.level[lvl])->last)->next = p;
-    (&mlf.level[lvl])->last = p;
+    ((&mlf.queues[lvl])->last)->next = p;
+    (&mlf.queues[lvl])->last = p;
   }
-  (&mlf.level[lvl])->size++;
-  printf("size de la cola %d en level %d \n",(&mlf.level[lvl])->size, lvl);
+  (&mlf.queues[lvl])->size++;
+   printf("size de la cola %d en level %d \n",(&mlf.queues[lvl])->size, lvl);
+   release(&mlf.lock);
 }
 
 static struct proc*
 dequeue(int lvl) {
   struct proc* res = 0;
+  acquire(&mlf.lock);
   if (isempty(lvl)) {
     printf("cola vacia en nivel %d\n", lvl);
     panic("panic in dequeue why queue is empty\n");
   }
-  res = (&mlf.level[lvl])->first;
-  (&mlf.level[lvl])->first = res->next;
+  res = (&mlf.queues[lvl])->first;
+  (&mlf.queues[lvl])->first = res->next;
   res->next = 0;
   if (res->state != RUNNABLE)
     panic("invalid state in dequeue ");
+  (&mlf.queues[lvl])->size--;
+  release(&mlf.lock);
   return res;
 }
 
@@ -285,10 +290,8 @@ userinit(void)
   p-> level = 0;
   p->state = RUNNABLE;
 
-  acquire(&mlf.lock);
   printf("encola en userinit\n");
   enqueue(p);
-  release(&mlf.lock); 
   release(&p->lock); 
 }
 
@@ -360,10 +363,9 @@ fork(void)
   np->level = 0;//p->level
   np->state = RUNNABLE;
 
-  acquire(&mlf.lock);
   printf("encola en fork");
   enqueue(np);
-  release(&mlf.lock);
+ 
   release(&np->lock);
   return pid;
 }
@@ -491,15 +493,16 @@ scheduler(void)
   struct cpu *c = mycpu();
   
   c->proc = 0;
+  
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
     
     for(int lvl = 0; lvl < NLEVEL; lvl++) { 
-      acquire(&mlf.lock);
       p = dequeue(lvl);
-      release(&mlf.lock);
       acquire(&p->lock);
+      
+     
       // Switch to chosen process.  It is the process's job
       // to release its lock and then reacquire it
       // before jumping back to us.
@@ -623,10 +626,8 @@ wakeup(void *chan)
       if(p->state == SLEEPING && p->chan == chan) {
         p->level--;
         p->state = RUNNABLE;
-        acquire(&mlf.lock);
         printf("encola en wakeup");
         enqueue(p);
-        release(&mlf.lock);
       }
       release(&p->lock);
     }
@@ -649,10 +650,8 @@ kill(int pid)
         // Wake process from sleep().
         p->level = 0;
         p->state = RUNNABLE;
-        acquire(&mlf.lock);
         printf("encola en kill");
         enqueue(p);
-        release(&mlf.lock);
       }
       release(&p->lock);
       return 0;
